@@ -5,9 +5,15 @@ FROM node:22-alpine AS deps
 
 WORKDIR /app
 
-COPY package.json package-lock.json ./
+# Enable corepack for pnpm
+RUN corepack enable && corepack prepare pnpm@9.15.4 --activate
 
-RUN npm ci
+# Copy workspace configuration
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY apps/webclaw/package.json ./apps/webclaw/
+
+# Install dependencies
+RUN pnpm install --frozen-lockfile
 
 # ============================================
 # Stage 2: Build the application
@@ -16,10 +22,14 @@ FROM node:22-alpine AS builder
 
 WORKDIR /app
 
+# Enable corepack for pnpm
+RUN corepack enable && corepack prepare pnpm@9.15.4 --activate
+
 COPY --from=deps /app/node_modules ./node_modules
+COPY --from=deps /app/apps/webclaw/node_modules ./apps/webclaw/node_modules
 COPY . .
 
-RUN npm run build
+RUN pnpm build
 
 # ============================================
 # Stage 3: Production runtime
@@ -35,13 +45,20 @@ ENV PORT=3000
 RUN addgroup --system --gid 1001 nodejs && \
     adduser --system --uid 1001 webclaw
 
+# Enable corepack for pnpm
+RUN corepack enable && corepack prepare pnpm@9.15.4 --activate
+
 # Copy built output and required files
-COPY --from=builder --chown=webclaw:nodejs /app/dist ./dist
-COPY --from=builder --chown=webclaw:nodejs /app/src ./src
+COPY --from=builder --chown=webclaw:nodejs /app/apps/webclaw/dist ./apps/webclaw/dist
+COPY --from=builder --chown=webclaw:nodejs /app/apps/webclaw/src ./apps/webclaw/src
 COPY --from=builder --chown=webclaw:nodejs /app/node_modules ./node_modules
+COPY --from=builder --chown=webclaw:nodejs /app/apps/webclaw/node_modules ./apps/webclaw/node_modules
 COPY --from=builder --chown=webclaw:nodejs /app/package.json ./
-COPY --from=builder --chown=webclaw:nodejs /app/vite.config.ts ./
-COPY --from=builder --chown=webclaw:nodejs /app/tsconfig.json ./
+COPY --from=builder --chown=webclaw:nodejs /app/pnpm-lock.yaml ./
+COPY --from=builder --chown=webclaw:nodejs /app/pnpm-workspace.yaml ./
+COPY --from=builder --chown=webclaw:nodejs /app/apps/webclaw/package.json ./apps/webclaw/
+COPY --from=builder --chown=webclaw:nodejs /app/apps/webclaw/vite.config.ts ./apps/webclaw/
+COPY --from=builder --chown=webclaw:nodejs /app/apps/webclaw/tsconfig.json ./apps/webclaw/
 
 USER webclaw
 
@@ -51,4 +68,4 @@ EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
   CMD wget --no-verbose --tries=1 --spider http://localhost:3000/api/ping || exit 1
 
-CMD ["npm", "run", "preview", "--", "--host", "--port", "3000"]
+CMD ["pnpm", "preview", "--host", "--port", "3000"]
