@@ -29,7 +29,7 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY --from=deps /app/apps/webclaw/node_modules ./apps/webclaw/node_modules
 COPY . .
 
-RUN pnpm build
+RUN pnpm -C apps/webclaw build
 
 # ============================================
 # Stage 3: Production runtime
@@ -54,8 +54,6 @@ COPY --from=builder --chown=webclaw:nodejs /app/apps/webclaw/src ./apps/webclaw/
 COPY --from=builder --chown=webclaw:nodejs /app/node_modules ./node_modules
 COPY --from=builder --chown=webclaw:nodejs /app/apps/webclaw/node_modules ./apps/webclaw/node_modules
 COPY --from=builder --chown=webclaw:nodejs /app/package.json ./
-COPY --from=builder --chown=webclaw:nodejs /app/pnpm-lock.yaml ./
-COPY --from=builder --chown=webclaw:nodejs /app/pnpm-workspace.yaml ./
 COPY --from=builder --chown=webclaw:nodejs /app/apps/webclaw/package.json ./apps/webclaw/
 COPY --from=builder --chown=webclaw:nodejs /app/apps/webclaw/vite.config.ts ./apps/webclaw/
 COPY --from=builder --chown=webclaw:nodejs /app/apps/webclaw/tsconfig.json ./apps/webclaw/
@@ -68,4 +66,4 @@ EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
   CMD wget --no-verbose --tries=1 --spider http://localhost:3000/api/ping || exit 1
 
-CMD ["pnpm", "preview", "--host", "--port", "3000"]
+CMD ["pnpm", "-C", "apps/webclaw", "preview", "--host", "--port", "3000"]
